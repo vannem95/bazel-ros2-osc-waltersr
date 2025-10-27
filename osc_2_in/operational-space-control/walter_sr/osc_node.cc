@@ -89,6 +89,21 @@ OSCNode::OSCNode(const std::string& xml_path)
     mj_resetDataKeyframe(mj_model_, mj_data_, 5); // 
     mj_forward(mj_model_, mj_data_); // Compute initial kinematics
     
+    
+    
+    std::cout << "\n--- DEBUG: POST KEYFRAME 5 MUJOCO QPOS DUMP ---" << std::endl;
+    std::cout << "Base Position (0-2): " << mj_data_->qpos[0] << ", " << mj_data_->qpos[1] << ", " << mj_data_->qpos[2] << std::endl;
+    std::cout << "Base Quat (3-6): " << mj_data_->qpos[3] << ", " << mj_data_->qpos[4] << ", " << mj_data_->qpos[5] << ", " << mj_data_->qpos[6] << std::endl;
+    
+    // Motor positions (assuming they start at index 7)
+    std::cout << "Motor QPOS (7-14): ";
+    for (int i = 0; i < model::nu_size; ++i) { // model::nu_size is 8
+        std::cout << mj_data_->qpos[7 + i] << (i < model::nu_size - 1 ? ", " : "");
+    }
+    std::cout << std::endl;
+    
+    
+    
     // Populate the site and body ID vectors
     for (const std::string_view& site : model::site_list) {
         std::string site_str = std::string(site);
