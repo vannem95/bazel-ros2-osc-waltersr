@@ -619,9 +619,13 @@ void OSCNode::publish_torque_command() {
     Vector<model::nu_size> feedforward_torque = 
         solution_(Eigen::seqN(optimization::dv_idx, optimization::u_size));
     
+        
     // 2. Apply Polarity Reversal for Left Joints and Torque Limit
     const double MAX_TORQUE = 5.0;
     
+    RCLCPP_INFO(this->get_logger(), "Published Command. Left joints polarity reversed. Torques (clamped to +/- %.1f Nm): [%.2f, %.2f, %.2f,%.2f,%.2f,%.2f,%.2f, %.2f]", 
+        MAX_TORQUE, feedforward_torque(0), feedforward_torque(1), feedforward_torque(2), feedforward_torque(3), feedforward_torque(4), feedforward_torque(5), feedforward_torque(6), feedforward_torque(7));
+
     for (size_t i = 0; i < model::nu_size; ++i) {
         const std::string& motor_name = MOTOR_NAMES[i];
         
@@ -668,6 +672,4 @@ void OSCNode::publish_torque_command() {
     // Publish the command
     torque_publisher_->publish(std::move(command_msg));
     
-    RCLCPP_INFO(this->get_logger(), "Published Command. Left joints polarity reversed. Torques (clamped to +/- %.1f Nm): [%.2f, %.2f, %.2f,%.2f,%.2f,%.2f,%.2f, %.2f]", 
-        MAX_TORQUE, feedforward_torque(0), feedforward_torque(1), feedforward_torque(2), feedforward_torque(3), feedforward_torque(4), feedforward_torque(5), feedforward_torque(6), feedforward_torque(7));
 }
