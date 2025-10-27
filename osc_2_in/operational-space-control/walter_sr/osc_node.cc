@@ -333,6 +333,9 @@ void OSCNode::timer_callback() {
     double rot_vel_target = 0.0; 
 
     // --- 4. PD Control (Desired Angular Accelerations $\ddot{\theta}_{des}$) ---
+    std::cout << "initial_tl_angular_position_" << initial_tl_angular_position_ << std::endl;
+    std::cout << "initial_tlh_angular_position_" << initial_tlh_angular_position_ << std::endl;
+
     
     // Shin Control
     double tl_ddq_cmd = shin_kp * (initial_tl_angular_position_ + shin_pos_target - tl_angular_position) + 
