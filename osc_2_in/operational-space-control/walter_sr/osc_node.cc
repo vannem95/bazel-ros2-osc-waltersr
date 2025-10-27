@@ -668,6 +668,6 @@ void OSCNode::publish_torque_command() {
     // Publish the command
     torque_publisher_->publish(std::move(command_msg));
     
-    RCLCPP_INFO(this->get_logger(), "Published Command. Left joints polarity reversed. Torques (clamped to +/- %.1f Nm): [%.2f, %.2f, ..., %.2f]", 
-        MAX_TORQUE, feedforward_torque(0), feedforward_torque(1), feedforward_torque(model::nu_size - 1));
+    RCLCPP_INFO(this->get_logger(), "Published Command. Left joints polarity reversed. Torques (clamped to +/- %.1f Nm): [%.2f, %.2f, %.2f,%.2f,%.2f,%.2f,%.2f, %.2f]", 
+        MAX_TORQUE, feedforward_torque(0), feedforward_torque(1), feedforward_torque(2), feedforward_torque(3), feedforward_torque(4), feedforward_torque(5), feedforward_torque(6), feedforward_torque(7));
 }
