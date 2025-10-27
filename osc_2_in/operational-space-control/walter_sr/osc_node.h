@@ -21,6 +21,11 @@
 #include "osc_2_in_interface/msg/osc_torque_command.hpp"
 #include "osc_2_in_interface/msg/osc_taskspace_targets.hpp"
 
+#include "osc_2_in_interface/msg/command.hpp"
+#include "osc_2_in_interface/msg/motor_command.hpp"
+#include "osc_2_in_interface/msg/wheel_motor_command.hpp"
+
+
 #include "operational-space-control/walter_sr/utilities.h"
 #include "operational-space-control/utilities.h"
 #include "operational-space-control/walter_sr/autogen/autogen_functions.h"
@@ -39,6 +44,11 @@ using rclcpp::Node;
 using osc_2_in_interface::msg::OSCMujocoState;
 using osc_2_in_interface::msg::OSCTorqueCommand;
 using osc_2_in_interface::msg::OSCTaskspaceTargets;
+
+using osc_2_in_interface::msg::Command;
+using osc_2_in_interface::msg::MotorCommand;
+using osc_2_in_interface::msg::WheelMotorCommand;
+
 
 // namespace {
 //     FunctionOperations Aeq_ops{
@@ -90,7 +100,8 @@ private:
     // ROS 2 members
     rclcpp::Subscription<OSCMujocoState>::SharedPtr state_subscriber_;
     // rclcpp::Subscription<OSCTaskspaceTargets>::SharedPtr taskspace_targets_subscriber_;
-    rclcpp::Publisher<OSCTorqueCommand>::SharedPtr torque_publisher_;
+    // rclcpp::Publisher<OSCTorqueCommand>::SharedPtr torque_publisher_;
+    rclcpp::Publisher<Command>::SharedPtr torque_publisher_;
     rclcpp::TimerBase::SharedPtr timer_;
 
     // Mutexes for thread-safe access

@@ -65,8 +65,8 @@ OSCNode::OSCNode(const std::string& xml_path)
       Abox_(MatrixColMajor<optimization::design_vector_size, optimization::design_vector_size>::Identity()),
       dv_lb_(Vector<optimization::dv_size>::Constant(-infinity_)),
       dv_ub_(Vector<optimization::dv_size>::Constant(infinity_)),
-      u_lb_({-1000, -1000, -1000, -1000, -1000, -1000, -1000, -1000}),
-      u_ub_({1000, 1000, 1000, 1000, 1000, 1000, 1000, 1000}),
+      u_lb_({-10, -10, -10, -10, -10, -10, -10, -10}),
+      u_ub_({10, 10, 10, 10, 10, 10, 10, 10}),
       z_lb_({
           -infinity_, -infinity_, 0.0, -infinity_, -infinity_, 0.0, -infinity_, -infinity_, 0.0, -infinity_, -infinity_, 0.0,
           -infinity_, -infinity_, 0.0, -infinity_, -infinity_, 0.0, -infinity_, -infinity_, 0.0, -infinity_, -infinity_, 0.0}),
@@ -174,7 +174,8 @@ OSCNode::OSCNode(const std::string& xml_path)
         "osc/mujoco_state", 10, std::bind(&OSCNode::state_callback, this, std::placeholders::_1));
     // taskspace_targets_subscriber_ = this->create_subscription<OSCTaskspaceTargets>(
     //     "osc/taskspace_targets", 10, std::bind(&OSCNode::taskspace_targets_callback, this, std::placeholders::_1));
-    torque_publisher_ = this->create_publisher<OSCTorqueCommand>("osc/torque_command", 10);
+    torque_publisher_ = this->create_publisher<Command>("osc/torque_command", 10);
+    // torque_publisher_ = this->create_publisher<OSCTorqueCommand>("walter/command", 10);
 
     timer_ = this->create_wall_timer(std::chrono::microseconds(2000), std::bind(&OSCNode::timer_callback, this));
 }
@@ -315,10 +316,12 @@ void OSCNode::timer_callback() {
     // Sinusoidal Target (same as original logic)
     double frequency = 0.1;
     double amplitude = 0.2;
-    double shin_pos_target = amplitude * std::sin(2.0 * 3.1415 * frequency * current_time); 
+    // double shin_pos_target = amplitude * std::sin(2.0 * 3.1415 * frequency * current_time); 
+    double shin_pos_target = 0.0; 
     
     // Derived Thigh Target
-    double thigh_pos_target = std::atan2(0.08 * std::sin(-shin_pos_target), 0.18 * std::cos(-shin_pos_target));
+    // double thigh_pos_target = std::atan2(0.08 * std::sin(-shin_pos_target), 0.18 * std::cos(-shin_pos_target));
+    double thigh_pos_target = 0.0;
     
     // Gains
     double shin_kp = 8000.0; 
@@ -574,16 +577,97 @@ void OSCNode::reset_optimization() {
     std::ignore = solver_.SetWarmStart(primal_vector, dual_vector);
 }
 
+// void OSCNode::publish_torque_command() {
+//     Vector<model::nu_size> torque_command = solution_(Eigen::seqN(optimization::dv_idx, optimization::u_size));
+//     auto torque_msg = std::make_unique<OSCTorqueCommand>();
+//     for (size_t i = 0; i < torque_command.size(); ++i) {
+//         torque_msg->torque_command[i] = static_cast<float>(torque_command(i));
+//     }
+//     torque_publisher_->publish(std::move(torque_msg));
+//     std::cout << "Published torque command: ";
+//     for (size_t i = 0; i < torque_command.size(); ++i) {
+//         std::cout << torque_command(i) << " ";
+//     }
+//     std::cout << std::endl;  
+// }
+
+// NOTE: You must ensure the torque_publisher_ in your header is defined as:
+// rclcpp::Publisher<Command::SharedPtr> torque_publisher_;
+
 void OSCNode::publish_torque_command() {
-    Vector<model::nu_size> torque_command = solution_(Eigen::seqN(optimization::dv_idx, optimization::u_size));
-    auto torque_msg = std::make_unique<OSCTorqueCommand>();
-    for (size_t i = 0; i < torque_command.size(); ++i) {
-        torque_msg->torque_command[i] = static_cast<float>(torque_command(i));
+    // Joints whose polarity must be reversed
+    const std::set<std::string> reversed_joints_ = {
+        "rear_left_hip", 
+        "rear_left_knee", 
+        "front_left_hip", 
+        "front_left_knee"
+    };
+
+    // Motor name mapping (Index 0 to 7)
+    const std::array<std::string, model::nu_size> MOTOR_NAMES = {
+        "rear_left_hip",
+        "rear_left_knee",
+        "rear_right_hip",
+        "rear_right_knee",
+        "front_left_hip",
+        "front_left_knee",
+        "front_right_hip",
+        "front_right_knee"
+    };
+
+    // 1. Extract the feedforward torque from the QP solution (u_size = 8)
+    Vector<model::nu_size> feedforward_torque = 
+        solution_(Eigen::seqN(optimization::dv_idx, optimization::u_size));
+    
+    // 2. Apply Polarity Reversal for Left Joints and Torque Limit
+    const double MAX_TORQUE = 5.0;
+    
+    for (size_t i = 0; i < model::nu_size; ++i) {
+        const std::string& motor_name = MOTOR_NAMES[i];
+        
+        // ---  Polarity Reversal Check (Executed first) ---
+        if (reversed_joints_.count(motor_name)) {
+            // Reverse the sign for left joints
+            feedforward_torque(i) *= -1.0;
+        }
+
+        // --- Torque Limit (Applied to the final, signed torque) ---
+        // Clamping the torque value between -MAX_TORQUE and MAX_TORQUE
+        feedforward_torque(i) = std::clamp(feedforward_torque(i), -MAX_TORQUE, MAX_TORQUE);
     }
-    torque_publisher_->publish(std::move(torque_msg));
-    std::cout << "Published torque command: ";
-    for (size_t i = 0; i < torque_command.size(); ++i) {
-        std::cout << torque_command(i) << " ";
+    
+    // 3. Create the new command message (Command.msg)
+    auto command_msg = std::make_unique<Command>(); 
+
+    // ... (Steps 4, 5, 6 for message population and publishing remain the same) ...
+    // Set global fields
+    command_msg->high_level_control_mode = 3; 
+    command_msg->master_gain = 1.0; 
+    
+    // Populate MotorCommand array
+    command_msg->motor_commands.resize(model::nu_size);
+
+    for (size_t i = 0; i < model::nu_size; ++i) {
+        // --- Motor Name ---
+        command_msg->motor_commands[i].name = MOTOR_NAMES[i];
+        
+        // --- Command Data ---
+        command_msg->motor_commands[i].position_setpoint = 0.0;
+        command_msg->motor_commands[i].velocity_setpoint = 0.0; 
+        // Use the sign-flipped and clamped torque
+        command_msg->motor_commands[i].feedforward_torque = static_cast<double>(feedforward_torque(i)); 
+        
+        // --- PD Gains and Modes ---
+        command_msg->motor_commands[i].kp = 0.0; 
+        command_msg->motor_commands[i].kd = 0.0;
+        command_msg->motor_commands[i].control_mode = 1; // Torque Control Mode
+        command_msg->motor_commands[i].input_mode = 1;   
+        command_msg->motor_commands[i].enable = true; 
     }
-    std::cout << std::endl;  
+    
+    // Publish the command
+    torque_publisher_->publish(std::move(command_msg));
+    
+    RCLCPP_INFO(this->get_logger(), "Published Command. Left joints polarity reversed. Torques (clamped to +/- %.1f Nm): [%.2f, %.2f, ..., %.2f]", 
+        MAX_TORQUE, feedforward_torque(0), feedforward_torque(1), feedforward_torque(model::nu_size - 1));
 }
