@@ -171,7 +171,7 @@ OSCNode::OSCNode(const std::string& xml_path)
 
     // --- ROS 2 communication setup ---
     state_subscriber_ = this->create_subscription<OSCMujocoState>(
-        "osc/mujoco_state", 10, std::bind(&OSCNode::state_callback, this, std::placeholders::_1));
+        "/state_estimator/state", 10, std::bind(&OSCNode::state_callback, this, std::placeholders::_1));
     // taskspace_targets_subscriber_ = this->create_subscription<OSCTaskspaceTargets>(
     //     "osc/taskspace_targets", 10, std::bind(&OSCNode::taskspace_targets_callback, this, std::placeholders::_1));
     torque_publisher_ = this->create_publisher<Command>("osc/torque_command", 10);
