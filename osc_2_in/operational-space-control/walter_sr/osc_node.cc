@@ -144,6 +144,29 @@ OSCNode::OSCNode(const std::string& xml_path)
     
     update_mj_data();
 
+    // --- Optimization Initialization ---
+    // Instead of using a dummy ROS message to set state_ to zero, 
+    // populate state_ with the actual initial Keyframe 5 data from mj_data_.
+    
+    // 1. Populate state_.motor_position from mj_data_->qpos
+    //    Motor positions start at index 7 in the floating-base qpos array (3-pos + 4-quat).
+    
+    // Assuming model::nu_size is 8:
+    for (size_t i = 0; i < model::nu_size; ++i) {
+        // qpos index = 7 (base pos/quat end) + i (motor index)
+        state_.motor_position(i) = mj_data_->qpos[7 + i];
+        // Ensure other essential fields are also non-zero if needed, 
+        // e.g., base rotation:
+        if (i < 4) {
+            state_.body_rotation(i) = mj_data_->qpos[3 + i];
+        }
+    }
+    // You can clear velocities and torques as they should start at zero.
+    state_.motor_velocity.setZero();
+    state_.linear_body_velocity.setZero();
+    state_.angular_body_velocity.setZero();
+    state_.torque_estimate.setZero();
+
 
     // Store initial positions for PD targets
     // Thighs: 0, 2, 4, 6 in state_.motor_position
