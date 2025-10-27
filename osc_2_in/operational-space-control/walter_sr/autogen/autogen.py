@@ -523,7 +523,7 @@ def main(argv):
     r = Runfiles.Create()
     mj_model = mujoco.MjModel.from_xml_path(
         r.Rlocation(
-            path="mujoco-models/models/walter_sr/WaLTER_Senior.xml",
+            path="mujoco-models/models/walter_sr/WaLTER_Senior_updated.xml",
         )
     )
 

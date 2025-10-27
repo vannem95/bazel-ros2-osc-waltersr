@@ -41,52 +41,52 @@ contact_site_list:
 friction_coefficient: 0.8
 
 weights_config:
-  torso_translational_tracking: 100.0
-  torso_rotational_tracking: 100.0
+  torso_translational_tracking: 0.0
+  torso_rotational_tracking: 0.0
 
-  tls_translational_tracking: 10.0
+  tls_translational_tracking: 0.0
   tls_rotational_tracking: 100.0
-  trs_translational_tracking: 10.0
+  trs_translational_tracking: 0.0
   trs_rotational_tracking: 100.0
-  hls_translational_tracking: 10.0
+  hls_translational_tracking: 0.0
   hls_rotational_tracking: 100.0
-  hrs_translational_tracking: 10.0
+  hrs_translational_tracking: 0.0
   hrs_rotational_tracking: 100.0
   
   # tlh_translational_tracking: 5000.0
-  # tlh_rotational_tracking: 100.0
+  # tlh_rotational_tracking: 00.0
   # trh_translational_tracking: 5000.0
-  # trh_rotational_tracking: 100.0
+  # trh_rotational_tracking: 00.0
   # hlh_translational_tracking: 5000.0
-  # hlh_rotational_tracking: 100.0
+  # hlh_rotational_tracking: 00.0
   # hrh_translational_tracking: 5000.0
-  # hrh_rotational_tracking: 100.0
+  # hrh_rotational_tracking: 00.0
 
 
-  tlh_translational_tracking: 800.0
-  tlh_rotational_tracking: 0.0
-  trh_translational_tracking: 800.0
-  trh_rotational_tracking: 0.0
-  hlh_translational_tracking: 800.0
-  hlh_rotational_tracking: 0.0
-  hrh_translational_tracking: 800.0
-  hrh_rotational_tracking: 0.0
+  tlh_translational_tracking: 0.0
+  tlh_rotational_tracking: 100.0
+  trh_translational_tracking: 0.0
+  trh_rotational_tracking: 100.0
+  hlh_translational_tracking: 0.0
+  hlh_rotational_tracking: 100.0
+  hrh_translational_tracking: 0.0
+  hrh_rotational_tracking: 100.0
 
-  tlf_translational_tracking: 10.0
-  tlf_rotational_tracking: 10.0
-  tlr_translational_tracking: 10.0
-  tlr_rotational_tracking: 10.0
-  trf_translational_tracking: 10.0
-  trf_rotational_tracking: 10.0
-  trr_translational_tracking: 10.0
-  trr_rotational_tracking: 10.0
-  hlf_translational_tracking: 10.0
-  hlf_rotational_tracking: 10.0
-  hlr_translational_tracking: 10.0
-  hlr_rotational_tracking: 10.0
-  hrf_translational_tracking: 10.0
-  hrf_rotational_tracking: 10.0
-  hrr_translational_tracking: 10.0
-  hrr_rotational_tracking: 10.0
+  tlf_translational_tracking: 1.0
+  tlf_rotational_tracking: 1.0
+  tlr_translational_tracking: 1.0
+  tlr_rotational_tracking: 1.0
+  trf_translational_tracking: 1.0
+  trf_rotational_tracking: 1.0
+  trr_translational_tracking: 1.0
+  trr_rotational_tracking: 1.0
+  hlf_translational_tracking: 1.0
+  hlf_rotational_tracking: 1.0
+  hlr_translational_tracking: 1.0
+  hlr_rotational_tracking: 1.0
+  hrf_translational_tracking: 1.0
+  hrf_rotational_tracking: 1.0
+  hrr_translational_tracking: 1.0
+  hrr_rotational_tracking: 1.0
   torque: 1.0e-4
   regularization: 1.0e-4

@@ -7,7 +7,7 @@ int main(int argc, char** argv) {
 
     std::string error;
     std::unique_ptr<rules_cc::cc::runfiles::Runfiles> runfiles(
-        rules_cc::cc::runfiles::Runfiles::Create(argv[0], BAZEL_CURRENT_REPOSITORY, &error));
+        rules_cc::cc::runfiles::Runfiles::Create(argv[0], "osc_2_in", &error));
 
     if (!error.empty()) {
         std::cerr << "Failed to create runfiles: " << error << std::endl;
@@ -15,7 +15,7 @@ int main(int argc, char** argv) {
     }
 
     std::filesystem::path model_path = 
-        runfiles->Rlocation("mujoco-models/models/walter_sr/scene_walter_sr.xml");
+        runfiles->Rlocation("mujoco-models+/models/walter_sr/scene_walter_sr_updated.xml");
 
     try {
         auto node = std::make_shared<OSCNode>(model_path.string());

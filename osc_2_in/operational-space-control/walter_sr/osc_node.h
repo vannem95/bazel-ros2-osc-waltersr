@@ -97,6 +97,25 @@ private:
     std::mutex state_mutex_;
     // std::mutex taskspace_targets_mutex_;
 
+
+    
+    // --- Persistent PD Control History & References ---
+    double last_time_ = 0.0;
+    
+
+
+    // Initial joint angles (for position tracking reference)
+    double initial_tl_angular_position_ = 0.0;
+    double initial_tr_angular_position_ = 0.0;
+    double initial_hl_angular_position_ = 0.0;
+    double initial_hr_angular_position_ = 0.0;
+    double initial_tlh_angular_position_ = 0.0;
+    double initial_trh_angular_position_ = 0.0;
+    double initial_hlh_angular_position_ = 0.0;
+    double initial_hrh_angular_position_ = 0.0;
+
+
+
     // Shared Variables (Inputs/Outputs)
     State state_;
     Matrix<model::site_ids_size, 6> taskspace_targets_;

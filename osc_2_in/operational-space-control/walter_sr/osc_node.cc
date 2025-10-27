@@ -85,6 +85,9 @@ OSCNode::OSCNode(const std::string& xml_path)
     }
     mj_model_->opt.timestep = 0.002;
     mj_data_ = mj_makeData(mj_model_);
+
+    mj_resetDataKeyframe(mj_model_, mj_data_, 5); // 
+    mj_forward(mj_model_, mj_data_); // Compute initial kinematics
     
     // Populate the site and body ID vectors
     for (const std::string_view& site : model::site_list) {
@@ -142,6 +145,20 @@ OSCNode::OSCNode(const std::string& xml_path)
     update_mj_data();
 
 
+    // Store initial positions for PD targets
+    // Thighs: 0, 2, 4, 6 in state_.motor_position
+    initial_tlh_angular_position_ = state_.motor_position(0);
+    initial_trh_angular_position_ = state_.motor_position(2);
+    initial_hlh_angular_position_ = state_.motor_position(4);
+    initial_hrh_angular_position_ = state_.motor_position(6);
+
+    // Shins: 1, 3, 5, 7 in state_.motor_position
+    initial_tl_angular_position_ = state_.motor_position(1);
+    initial_tr_angular_position_ = state_.motor_position(3);
+    initial_hl_angular_position_ = state_.motor_position(5);
+    initial_hr_angular_position_ = state_.motor_position(7);
+
+
     Vector<model::nq_size> qpos = Eigen::Map<Vector<model::nq_size>>(mj_data_->qpos);
     initial_position_ = qpos(Eigen::seqN(0, 3));    
     
@@ -196,46 +213,181 @@ void OSCNode::state_callback(const OSCMujocoState::SharedPtr msg) {
 //     taskspace_targets_ = Eigen::Map<Matrix<model::site_ids_size, 6>>(msg->targets.data());
 // }
 
+
+
+
+
+// ---------------------------------------------------------------------------------------------------------
+//                                            Zero target
+// ---------------------------------------------------------------------------------------------------------
+// void OSCNode::timer_callback() {
+//     std::lock_guard<std::mutex> lock_state(state_mutex_);
+//     // Get the current time from the ROS 2 clock
+//     double current_time = this->now().seconds();
+
+//     // Replicate the logic from your original `main` function
+//     Vector<3> position_target = Vector<3>(
+//         initial_position_(0) + 0.2 * current_time, 
+//         initial_position_(1), 
+//         initial_position_(2)
+//     );
+//     Vector<3> velocity_target = Vector<3>(
+//         0.2, 0.0, 0.0
+//     );
+//     Vector<3> body_position = Vector<3>(0.2, 0.0, 0.0);
+
+//     Eigen::Quaternion<double> body_rotation = Eigen::Quaternion<double>(state_.body_rotation(0), state_.body_rotation(1), state_.body_rotation(2), state_.body_rotation(3));
+//     Vector<3> position_error = position_target - body_position;
+//     Vector<3> velocity_error = velocity_target - state_.linear_body_velocity;
+//     Vector<3> rotation_error = (Eigen::Quaternion<double>(1, 0, 0, 0) * body_rotation.conjugate()).vec();
+//     Vector<3> angular_velocity_error = Vector<3>::Zero() - state_.angular_body_velocity;
+
+//     double torso_lin_kp = 0.0;
+//     double torso_lin_kv = 0.0;
+//     double torso_ang_kp = 0.0;
+//     double torso_ang_kv = 0.0;        
+
+//     Vector<3> linear_control = torso_lin_kp * (position_error) + torso_lin_kv * (velocity_error);
+//     Vector<3> angular_control = torso_ang_kp * (rotation_error) + torso_ang_kv * (angular_velocity_error);
+//     Eigen::Vector<double, 6> cmd {linear_control(0), 0, 0, angular_control(0), angular_control(1), angular_control(2)};
+
+//     // Update the task-space targets member variable directly
+//     taskspace_targets_.row(0) = cmd;
+//     update_mj_data();
+//     update_osc_data();
+//     update_optimization_data();
+//     std::ignore = update_optimization();
+//     solve_optimization();
+//     publish_torque_command();
+// }
+// ---------------------------------------------------------------------------------------------------------
+
+
+
+
+// ---------------------------------------------------------------------------------------------------------
+//                                            Angular Position Control
+// ---------------------------------------------------------------------------------------------------------
 void OSCNode::timer_callback() {
     std::lock_guard<std::mutex> lock_state(state_mutex_);
-    // Get the current time from the ROS 2 clock
+    
     double current_time = this->now().seconds();
+    
+    // Check for first call or zero time step
+    if (last_time_ == 0.0) {
+        update_mj_data(); // Ensure mj_data_ is consistent
+        last_time_ = current_time;
+        return; 
+    }
+    
+    // --- 1. Update Mujoco Data for Kinematics ---
+    // This maps the received state_.qpos/qvel into mj_data_ and runs mj_forward.
+    update_mj_data(); 
 
-    // Replicate the logic from your original `main` function
-    Vector<3> position_target = Vector<3>(
-        initial_position_(0) + 0.2 * current_time, 
-        initial_position_(1), 
-        initial_position_(2)
-    );
-    Vector<3> velocity_target = Vector<3>(
-        0.2, 0.0, 0.0
-    );
-    Vector<3> body_position = Vector<3>(0.2, 0.0, 0.0);
+    // --- 2. Extract Current Angles and Velocities ---
+    // Indices for state_.motor_position/velocity:
+    // Thighs: 0, 2, 4, 6  |  Shins: 1, 3, 5, 7
+    
+    // Shin Positions/Velocities
+    double tl_angular_position = state_.motor_position(1);
+    double tr_angular_position = state_.motor_position(3);
+    double hl_angular_position = state_.motor_position(5);
+    double hr_angular_position = state_.motor_position(7);
 
-    Eigen::Quaternion<double> body_rotation = Eigen::Quaternion<double>(state_.body_rotation(0), state_.body_rotation(1), state_.body_rotation(2), state_.body_rotation(3));
-    Vector<3> position_error = position_target - body_position;
-    Vector<3> velocity_error = velocity_target - state_.linear_body_velocity;
-    Vector<3> rotation_error = (Eigen::Quaternion<double>(1, 0, 0, 0) * body_rotation.conjugate()).vec();
-    Vector<3> angular_velocity_error = Vector<3>::Zero() - state_.angular_body_velocity;
+    double tl_angular_velocity = state_.motor_velocity(1);
+    double tr_angular_velocity = state_.motor_velocity(3);
+    double hl_angular_velocity = state_.motor_velocity(5);
+    double hr_angular_velocity = state_.motor_velocity(7);
 
-    double torso_lin_kp = 0.0;
-    double torso_lin_kv = 0.0;
-    double torso_ang_kp = 0.0;
-    double torso_ang_kv = 0.0;        
+    // Thigh Positions/Velocities
+    double tlh_angular_position = state_.motor_position(0);
+    double trh_angular_position = state_.motor_position(2);
+    double hlh_angular_position = state_.motor_position(4);
+    double hrh_angular_position = state_.motor_position(6);
 
-    Vector<3> linear_control = torso_lin_kp * (position_error) + torso_lin_kv * (velocity_error);
-    Vector<3> angular_control = torso_ang_kp * (rotation_error) + torso_ang_kv * (angular_velocity_error);
-    Eigen::Vector<double, 6> cmd {linear_control(0), 0, 0, angular_control(0), angular_control(1), angular_control(2)};
+    double tlh_angular_velocity = state_.motor_velocity(0);
+    double trh_angular_velocity = state_.motor_velocity(2);
+    double hlh_angular_velocity = state_.motor_velocity(4);
+    double hrh_angular_velocity = state_.motor_velocity(6);
 
-    // Update the task-space targets member variable directly
-    taskspace_targets_.row(0) = cmd;
-    update_mj_data();
+
+    // --- 3. Define Targets and PD Control Gains ---
+    // Sinusoidal Target (same as original logic)
+    double frequency = 0.1;
+    double amplitude = 0.2;
+    double shin_pos_target = amplitude * std::sin(2.0 * 3.1415 * frequency * current_time); 
+    
+    // Derived Thigh Target
+    double thigh_pos_target = std::atan2(0.08 * std::sin(-shin_pos_target), 0.18 * std::cos(-shin_pos_target));
+    
+    // Gains
+    double shin_kp = 8000.0; 
+    double shin_kv = 800.0;
+    double thigh_kp = 1000.0; 
+    double thigh_kv = 100.0;
+    
+    // Desired Velocity is zero for position tracking
+    double rot_vel_target = 0.0; 
+
+    // --- 4. PD Control (Desired Angular Accelerations $\ddot{\theta}_{des}$) ---
+    
+    // Shin Control
+    double tl_ddq_cmd = shin_kp * (initial_tl_angular_position_ + shin_pos_target - tl_angular_position) + 
+                        shin_kv * (rot_vel_target - tl_angular_velocity);
+    double tr_ddq_cmd = shin_kp * (initial_tr_angular_position_ + shin_pos_target - tr_angular_position) + 
+                        shin_kv * (rot_vel_target - tr_angular_velocity);
+    double hl_ddq_cmd = shin_kp * (initial_hl_angular_position_ - shin_pos_target - hl_angular_position) + 
+                        shin_kv * (rot_vel_target - hl_angular_velocity);
+    double hr_ddq_cmd = shin_kp * (initial_hr_angular_position_ - shin_pos_target - hr_angular_position) + 
+                        shin_kv * (rot_vel_target - hr_angular_velocity);
+
+    // Thigh Control
+    double tlh_ddq_cmd = thigh_kp * (initial_tlh_angular_position_ + thigh_pos_target - tlh_angular_position) + 
+                         thigh_kv * (rot_vel_target - tlh_angular_velocity);
+    double trh_ddq_cmd = thigh_kp * (initial_trh_angular_position_ + thigh_pos_target - trh_angular_position) + 
+                         thigh_kv * (rot_vel_target - trh_angular_velocity);
+    double hlh_ddq_cmd = thigh_kp * (initial_hlh_angular_position_ - thigh_pos_target - hlh_angular_position) + 
+                         thigh_kv * (rot_vel_target - hlh_angular_velocity);
+    double hrh_ddq_cmd = thigh_kp * (initial_hrh_angular_position_ - thigh_pos_target - hrh_angular_position) + 
+                         thigh_kv * (rot_vel_target - hrh_angular_velocity);
+
+
+    // --- 5. Populate Taskspace Targets Matrix ---
+    // Set the desired **rotational acceleration about the Y-axis** (index 4) for the target sites.
+    // The matrix is (model::site_ids_size x 6), where 6 DOFs are (lin_x, lin_y, lin_z, rot_x, rot_y, rot_z).
+    taskspace_targets_.setZero(); 
+
+    // Shin Targets (Sites 1, 2, 3, 4)
+    taskspace_targets_.row(1)(4) = tl_ddq_cmd; // torso_left_shin_site
+    taskspace_targets_.row(2)(4) = tr_ddq_cmd; // torso_right_shin_site
+    taskspace_targets_.row(3)(4) = hl_ddq_cmd; // head_left_shin_site
+    taskspace_targets_.row(4)(4) = hr_ddq_cmd; // head_right_shin_site
+
+    // Thigh Targets (Sites 5, 6, 7, 8)
+    taskspace_targets_.row(5)(4) = tlh_ddq_cmd; // torso_left_thigh_site
+    taskspace_targets_.row(6)(4) = trh_ddq_cmd; // torso_right_thigh_site
+    taskspace_targets_.row(7)(4) = hlh_ddq_cmd; // head_left_thigh_site
+    taskspace_targets_.row(8)(4) = hrh_ddq_cmd; // head_right_thigh_site
+    
+    // Torso Target (Site 0) - Kept Zero 
+    taskspace_targets_.row(0).setZero(); 
+
+    // --- 6. Update History and Solve ---
+    last_time_ = current_time;
+
+    // These calls use the updated `taskspace_targets_` and the received `state_.contact_mask`.
     update_osc_data();
     update_optimization_data();
     std::ignore = update_optimization();
     solve_optimization();
     publish_torque_command();
 }
+// ---------------------------------------------------------------------------------------------------------
+
+
+
+
+
 
 void OSCNode::update_mj_data() {
     Vector<model::nq_size> qpos = Vector<model::nq_size>::Zero();
