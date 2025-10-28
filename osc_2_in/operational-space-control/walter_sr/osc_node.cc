@@ -615,6 +615,7 @@ void OSCNode::publish_torque_command() {
     const double SAFETY_KP = 1000.0; 
     const double SAFETY_KD = 100.0;
     const int TORQUE_CONTROL_MODE = 1; 
+    const int VELOCITY_CONTROL_MODE = 2; 
     const int POSITION_CONTROL_MODE = 3; 
 
     // --- 1. Initialize Command Message ---
@@ -632,12 +633,12 @@ void OSCNode::publish_torque_command() {
             command_msg->motor_commands[i].name = MOTOR_NAMES[i];
             
             // Force Position Control and maintain current position (q_current)
-            command_msg->motor_commands[i].control_mode = POSITION_CONTROL_MODE;
-            command_msg->motor_commands[i].position_setpoint = state_.motor_position(i); 
+            command_msg->motor_commands[i].control_mode = VELOCITY_CONTROL_MODE;
+            command_msg->motor_commands[i].position_setpoint = 0.0; 
             command_msg->motor_commands[i].velocity_setpoint = 0.0;
             command_msg->motor_commands[i].feedforward_torque = 0.0; // Torque is handled by the high Kp/Kd
-            command_msg->motor_commands[i].kp = SAFETY_KP; 
-            command_msg->motor_commands[i].kd = SAFETY_KD;
+            command_msg->motor_commands[i].kp = 0.0; 
+            command_msg->motor_commands[i].kd = 0.0;
             command_msg->motor_commands[i].input_mode = 1;   
             command_msg->motor_commands[i].enable = true; 
         }
