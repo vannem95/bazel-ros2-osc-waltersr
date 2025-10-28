@@ -90,17 +90,20 @@ OSCNode::OSCNode(const std::string& xml_path)
     mj_forward(mj_model_, mj_data_); // Compute initial kinematics
     
     
-    
-    std::cout << "\n--- DEBUG: POST KEYFRAME 5 MUJOCO QPOS DUMP ---" << std::endl;
-    std::cout << "Base Position (0-2): " << mj_data_->qpos[0] << ", " << mj_data_->qpos[1] << ", " << mj_data_->qpos[2] << std::endl;
-    std::cout << "Base Quat (3-6): " << mj_data_->qpos[3] << ", " << mj_data_->qpos[4] << ", " << mj_data_->qpos[5] << ", " << mj_data_->qpos[6] << std::endl;
-    
-    // Motor positions (assuming they start at index 7)
-    std::cout << "Motor QPOS (7-14): ";
-    for (int i = 0; i < model::nu_size; ++i) { // model::nu_size is 8
-        std::cout << mj_data_->qpos[7 + i] << (i < model::nu_size - 1 ? ", " : "");
-    }
-    std::cout << std::endl;
+    // Thighs: 0, 2, 4, 6 in the 8-DOF motor array.
+    // They correspond to indices 7, 9, 11, 13 in the full mj_data_->qpos array.
+    initial_tlh_angular_position_ = mj_data_->qpos[7 + 0]; // Index 7 (Motor 0)
+    initial_trh_angular_position_ = mj_data_->qpos[7 + 2]; // Index 9 (Motor 2)
+    initial_hlh_angular_position_ = mj_data_->qpos[7 + 4]; // Index 11 (Motor 4)
+    initial_hrh_angular_position_ = mj_data_->qpos[7 + 6]; // Index 13 (Motor 6)
+
+    // Shins: 1, 3, 5, 7 in the 8-DOF motor array.
+    // They correspond to indices 8, 10, 12, 14 in the full mj_data_->qpos array.
+    initial_tl_angular_position_ = mj_data_->qpos[7 + 1]; // Index 8 (Motor 1)
+    initial_tr_angular_position_ = mj_data_->qpos[7 + 3]; // Index 10 (Motor 3)
+    initial_hl_angular_position_ = mj_data_->qpos[7 + 5]; // Index 12 (Motor 5)
+    initial_hr_angular_position_ = mj_data_->qpos[7 + 7]; // Index 14 (Motor 7)
+
     
     
     
@@ -183,19 +186,6 @@ OSCNode::OSCNode(const std::string& xml_path)
     // state_.torque_estimate.setZero();
 
 
-    // Thighs: 0, 2, 4, 6 in the 8-DOF motor array.
-    // They correspond to indices 7, 9, 11, 13 in the full mj_data_->qpos array.
-    initial_tlh_angular_position_ = mj_data_->qpos[7 + 0]; // Index 7 (Motor 0)
-    initial_trh_angular_position_ = mj_data_->qpos[7 + 2]; // Index 9 (Motor 2)
-    initial_hlh_angular_position_ = mj_data_->qpos[7 + 4]; // Index 11 (Motor 4)
-    initial_hrh_angular_position_ = mj_data_->qpos[7 + 6]; // Index 13 (Motor 6)
-
-    // Shins: 1, 3, 5, 7 in the 8-DOF motor array.
-    // They correspond to indices 8, 10, 12, 14 in the full mj_data_->qpos array.
-    initial_tl_angular_position_ = mj_data_->qpos[7 + 1]; // Index 8 (Motor 1)
-    initial_tr_angular_position_ = mj_data_->qpos[7 + 3]; // Index 10 (Motor 3)
-    initial_hl_angular_position_ = mj_data_->qpos[7 + 5]; // Index 12 (Motor 5)
-    initial_hr_angular_position_ = mj_data_->qpos[7 + 7]; // Index 14 (Motor 7)
 
     Vector<model::nq_size> qpos = Eigen::Map<Vector<model::nq_size>>(mj_data_->qpos);
     initial_position_ = qpos(Eigen::seqN(0, 3));    
