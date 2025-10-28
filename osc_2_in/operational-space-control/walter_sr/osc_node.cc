@@ -202,7 +202,7 @@ OSCNode::OSCNode(const std::string& xml_path)
         "/state_estimator/state", 10, std::bind(&OSCNode::state_callback, this, std::placeholders::_1));
     // taskspace_targets_subscriber_ = this->create_subscription<OSCTaskspaceTargets>(
     //     "osc/taskspace_targets", 10, std::bind(&OSCNode::taskspace_targets_callback, this, std::placeholders::_1));
-    torque_publisher_ = this->create_publisher<Command>("osc/torque_command", 10);
+    torque_publisher_ = this->create_publisher<Command>("walter/command", 10);
     // torque_publisher_ = this->create_publisher<OSCTorqueCommand>("walter/command", 10);
 
     timer_ = this->create_wall_timer(std::chrono::microseconds(2000), std::bind(&OSCNode::timer_callback, this));
