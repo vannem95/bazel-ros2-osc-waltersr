@@ -306,8 +306,6 @@ void OSCNode::timer_callback() {
     if (last_time_ == 0.0) {
         update_mj_data(); // Ensure mj_data_ is consistent
         last_time_ = current_time;
-        safety_override_active_ = false; // Initialize flag (must be a member variable) 
-        bool limit_hit = false;
         return; 
     }
 
@@ -322,26 +320,22 @@ void OSCNode::timer_callback() {
     // Check Thighs (0, 2, 4, 6)
     for (size_t i : {0, 2, 4, 6}) {
         if (std::abs(state_.motor_position(i)) >= THIGH_LIMIT) {
-            limit_hit = true;
+            safety_override_active_ = true;
             RCLCPP_WARN_ONCE(this->get_logger(), "Absolute THIGH limit (%.2f rad) hit on motor index %zu. Overriding control.", THIGH_LIMIT, i);
             break; 
         }
     }
     
     // Check Shins (1, 3, 5, 7)
-    if (!limit_hit) {
+    if (!safety_override_active_) {
         for (size_t i : {1, 3, 5, 7}) {
             if (std::abs(state_.motor_position(i)) >= SHIN_LIMIT) {
-                limit_hit = true;
+                safety_override_active_ = true;
                 RCLCPP_WARN_ONCE(this->get_logger(), "Absolute SHIN limit (%.2f rad) hit on motor index %zu. Overriding control.", SHIN_LIMIT, i);
                 break; 
             }
         }
     }
-
-    // Set the global override flag
-    safety_override_active_ = limit_hit;    
-
 
 
 
@@ -542,9 +536,6 @@ absl::Status OSCNode::update_optimization() {
             z_ub_masked(Eigen::seqN(3 * i, 3)) *= state_.contact_mask(i);
         }
     }
-
-    std::cout << "here" << std::endl;
-
     
     lb << opt_data_.beq, bineq_lb_, dv_lb_, u_lb_, z_lb_masked;
     ub << opt_data_.beq, opt_data_.bineq, dv_ub_, u_ub_, z_ub_masked;
@@ -553,7 +544,6 @@ absl::Status OSCNode::update_optimization() {
     Eigen::SparseMatrix<double> sparse_A = A.sparseView();
     sparse_H.makeCompressed();
     sparse_A.makeCompressed();
-
 
 
     absl::Status result;
@@ -670,10 +660,8 @@ void OSCNode::publish_torque_command() {
             command_msg->motor_commands[i].name = MOTOR_NAMES[i];
             command_msg->motor_commands[i].control_mode = TORQUE_CONTROL_MODE;
 
-            if (DEBUG){
-                final_torque = 0.0
-            }
-            command_msg->motor_commands[i].feedforward_torque = static_cast<double>(final_torque); 
+
+            command_msg->motor_commands[i].feedforward_torque = static_cast<double>(0.0); 
             
             // Zero out unused PD terms for Torque Mode
             command_msg->motor_commands[i].position_setpoint = 0.0;
