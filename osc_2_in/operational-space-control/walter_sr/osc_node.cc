@@ -306,114 +306,92 @@ void OSCNode::timer_callback() {
     if (last_time_ == 0.0) {
         update_mj_data(); // Ensure mj_data_ is consistent
         last_time_ = current_time;
+        safety_override_active_ = false; // Initialize flag (must be a member variable)        
         return; 
     }
-    
-    // --- 1. Update Mujoco Data for Kinematics ---
-    // This maps the received state_.qpos/qvel into mj_data_ and runs mj_forward.
-    update_mj_data(); 
-
-    // --- 2. Extract Current Angles and Velocities ---
-    // Indices for state_.motor_position/velocity:
-    // Thighs: 0, 2, 4, 6  |  Shins: 1, 3, 5, 7
-    
-    // Shin Positions/Velocities
-    double tl_angular_position = state_.motor_position(1);
-    double tr_angular_position = state_.motor_position(3);
-    double hl_angular_position = state_.motor_position(5);
-    double hr_angular_position = state_.motor_position(7);
-
-    double tl_angular_velocity = state_.motor_velocity(1);
-    double tr_angular_velocity = state_.motor_velocity(3);
-    double hl_angular_velocity = state_.motor_velocity(5);
-    double hr_angular_velocity = state_.motor_velocity(7);
-
-    // Thigh Positions/Velocities
-    double tlh_angular_position = state_.motor_position(0);
-    double trh_angular_position = state_.motor_position(2);
-    double hlh_angular_position = state_.motor_position(4);
-    double hrh_angular_position = state_.motor_position(6);
-
-    double tlh_angular_velocity = state_.motor_velocity(0);
-    double trh_angular_velocity = state_.motor_velocity(2);
-    double hlh_angular_velocity = state_.motor_velocity(4);
-    double hrh_angular_velocity = state_.motor_velocity(6);
-
-
-    // --- 3. Define Targets and PD Control Gains ---
-    // Sinusoidal Target (same as original logic)
-    double frequency = 0.1;
-    double amplitude = 0.2;
-    // double shin_pos_target = amplitude * std::sin(2.0 * 3.1415 * frequency * current_time); 
-    double shin_pos_target = 0.0; 
-    
-    // Derived Thigh Target
-    // double thigh_pos_target = std::atan2(0.08 * std::sin(-shin_pos_target), 0.18 * std::cos(-shin_pos_target));
-    double thigh_pos_target = 0.0;
-    
-    // Gains
-    double shin_kp = 8000.0; 
-    double shin_kv = 800.0;
-    double thigh_kp = 1000.0; 
-    double thigh_kv = 100.0;
-    
-    // Desired Velocity is zero for position tracking
-    double rot_vel_target = 0.0; 
-
-    // --- 4. PD Control (Desired Angular Accelerations $\ddot{\theta}_{des}$) ---
-    std::cout << "initial_tl_angular_position_" << initial_tl_angular_position_ << std::endl;
-    std::cout << "initial_tlh_angular_position_" << initial_tlh_angular_position_ << std::endl;
 
     
-    // Shin Control
-    double tl_ddq_cmd = shin_kp * (initial_tl_angular_position_ + shin_pos_target - tl_angular_position) + 
-                        shin_kv * (rot_vel_target - tl_angular_velocity);
-    double tr_ddq_cmd = shin_kp * (initial_tr_angular_position_ + shin_pos_target - tr_angular_position) + 
-                        shin_kv * (rot_vel_target - tr_angular_velocity);
-    double hl_ddq_cmd = shin_kp * (initial_hl_angular_position_ - shin_pos_target - hl_angular_position) + 
-                        shin_kv * (rot_vel_target - hl_angular_velocity);
-    double hr_ddq_cmd = shin_kp * (initial_hr_angular_position_ - shin_pos_target - hr_angular_position) + 
-                        shin_kv * (rot_vel_target - hr_angular_velocity);
 
-    // Thigh Control
-    double tlh_ddq_cmd = thigh_kp * (initial_tlh_angular_position_ + thigh_pos_target - tlh_angular_position) + 
-                         thigh_kv * (rot_vel_target - tlh_angular_velocity);
-    double trh_ddq_cmd = thigh_kp * (initial_trh_angular_position_ + thigh_pos_target - trh_angular_position) + 
-                         thigh_kv * (rot_vel_target - trh_angular_velocity);
-    double hlh_ddq_cmd = thigh_kp * (initial_hlh_angular_position_ - thigh_pos_target - hlh_angular_position) + 
-                         thigh_kv * (rot_vel_target - hlh_angular_velocity);
-    double hrh_ddq_cmd = thigh_kp * (initial_hrh_angular_position_ - thigh_pos_target - hrh_angular_position) + 
-                         thigh_kv * (rot_vel_target - hrh_angular_velocity);
-
-
-    // --- 5. Populate Taskspace Targets Matrix ---
-    // Set the desired **rotational acceleration about the Y-axis** (index 4) for the target sites.
-    // The matrix is (model::site_ids_size x 6), where 6 DOFs are (lin_x, lin_y, lin_z, rot_x, rot_y, rot_z).
-    taskspace_targets_.setZero(); 
-
-    // Shin Targets (Sites 1, 2, 3, 4)
-    taskspace_targets_.row(1)(4) = tl_ddq_cmd; // torso_left_shin_site
-    taskspace_targets_.row(2)(4) = tr_ddq_cmd; // torso_right_shin_site
-    taskspace_targets_.row(3)(4) = hl_ddq_cmd; // head_left_shin_site
-    taskspace_targets_.row(4)(4) = hr_ddq_cmd; // head_right_shin_site
-
-    // Thigh Targets (Sites 5, 6, 7, 8)
-    taskspace_targets_.row(5)(4) = tlh_ddq_cmd; // torso_left_thigh_site
-    taskspace_targets_.row(6)(4) = trh_ddq_cmd; // torso_right_thigh_site
-    taskspace_targets_.row(7)(4) = hlh_ddq_cmd; // head_left_thigh_site
-    taskspace_targets_.row(8)(4) = hrh_ddq_cmd; // head_right_thigh_site
+    // --- 2. Mandatory Joint Limit Check (Outer Loop - ABSOLUTE Limits) ---
+    // The limits are treated as absolute angles from the joint's zero position.
+    const double SHIN_LIMIT = M_PI / 2.0;
+    const double THIGH_LIMIT = M_PI / 4.0;
     
-    // Torso Target (Site 0) - Kept Zero 
-    taskspace_targets_.row(0).setZero(); 
+    bool limit_hit = false;
+    
+    // Check Thighs (0, 2, 4, 6)
+    for (size_t i : {0, 2, 4, 6}) {
+        if (std::abs(state_.motor_position(i)) >= THIGH_LIMIT) {
+            limit_hit = true;
+            RCLCPP_WARN_ONCE(this->get_logger(), "Absolute THIGH limit (%.2f rad) hit on motor index %zu. Overriding control.", THIGH_LIMIT, i);
+            break; 
+        }
+    }
+    
+    // Check Shins (1, 3, 5, 7)
+    if (!limit_hit) {
+        for (size_t i : {1, 3, 5, 7}) {
+            if (std::abs(state_.motor_position(i)) >= SHIN_LIMIT) {
+                limit_hit = true;
+                RCLCPP_WARN_ONCE(this->get_logger(), "Absolute SHIN limit (%.2f rad) hit on motor index %zu. Overriding control.", SHIN_LIMIT, i);
+                break; 
+            }
+        }
+    }
 
-    // --- 6. Update History and Solve ---
-    last_time_ = current_time;
+    // Set the global override flag
+    safety_override_active_ = limit_hit;    
 
-    // These calls use the updated `taskspace_targets_` and the received `state_.contact_mask`.
-    update_osc_data();
-    update_optimization_data();
-    std::ignore = update_optimization();
-    solve_optimization();
+
+
+
+    // --- 3. Conditional OSC Calculation and Solve ---
+    if (!safety_override_active_) {
+
+        // --- 1. Update Mujoco Data for Kinematics ---
+        // This maps the received state_.qpos/qvel into mj_data_ and runs mj_forward.
+        update_mj_data(); 
+
+        // --- 3a. Define Targets (PD targets still rely on initial positions) ---
+        // NOTE: Even with absolute safety limits, the controller tracks targets 
+        // relative to the initial keyframe pose, hence the reliance on initial_*_angular_position_.
+        
+        double current_time = this->now().seconds();
+        double frequency = 0.1;
+        double amplitude = 0.2;
+        double shin_pos_target = 0.0; // Target is now zero
+        double thigh_pos_target = 0.0; // Target is now zero
+        
+        double shin_kp = 8000.0; double shin_kv = 800.0;
+        double thigh_kp = 1000.0; double thigh_kv = 100.0;
+        double rot_vel_target = 0.0; 
+
+        // --- 3b. Calculate DDQ Commands ---
+        // Shin Control
+        double tl_ddq_cmd  = shin_kp * (initial_tl_angular_position_ + shin_pos_target - state_.motor_position(1)) + shin_kv * (rot_vel_target - state_.motor_velocity(1));
+        double tr_ddq_cmd  = shin_kp * (initial_tr_angular_position_ + shin_pos_target - state_.motor_position(3)) + shin_kv * (rot_vel_target - state_.motor_velocity(3));
+        double hl_ddq_cmd  = shin_kp * (initial_hl_angular_position_ - shin_pos_target - state_.motor_position(5)) + shin_kv * (rot_vel_target - state_.motor_velocity(5));
+        double hr_ddq_cmd  = shin_kp * (initial_hr_angular_position_ - shin_pos_target - state_.motor_position(7)) + shin_kv * (rot_vel_target - state_.motor_velocity(7));
+
+        // Thigh Control
+        double tlh_ddq_cmd = thigh_kp * (initial_tlh_angular_position_ + thigh_pos_target - state_.motor_position(0)) + thigh_kv * (rot_vel_target - state_.motor_velocity(0));
+        double trh_ddq_cmd = thigh_kp * (initial_trh_angular_position_ + thigh_pos_target - state_.motor_position(2)) + thigh_kv * (rot_vel_target - state_.motor_velocity(2));
+        double hlh_ddq_cmd = thigh_kp * (initial_hlh_angular_position_ - thigh_pos_target - state_.motor_position(4)) + thigh_kv * (rot_vel_target - state_.motor_velocity(4));
+        double hrh_ddq_cmd = thigh_kp * (initial_hrh_angular_position_ - thigh_pos_target - state_.motor_position(6)) + thigh_kv * (rot_vel_target - state_.motor_velocity(6));
+
+        // --- 3c. Populate Taskspace Targets Matrix ---
+        taskspace_targets_.setZero(); 
+        taskspace_targets_.row(1)(4) = tl_ddq_cmd; taskspace_targets_.row(2)(4) = tr_ddq_cmd;
+        taskspace_targets_.row(3)(4) = hl_ddq_cmd; taskspace_targets_.row(4)(4) = hr_ddq_cmd;
+        taskspace_targets_.row(5)(4) = tlh_ddq_cmd; taskspace_targets_.row(6)(4) = trh_ddq_cmd;
+        taskspace_targets_.row(7)(4) = hlh_ddq_cmd; taskspace_targets_.row(8)(4) = hrh_ddq_cmd;
+        
+        // --- 3d. Solve Optimization ---
+        update_osc_data();
+        update_optimization_data();
+        std::ignore = update_optimization();
+        solve_optimization();
+    }
     publish_torque_command();
 }
 // ---------------------------------------------------------------------------------------------------------
@@ -626,81 +604,78 @@ void OSCNode::reset_optimization() {
 // rclcpp::Publisher<Command::SharedPtr> torque_publisher_;
 
 void OSCNode::publish_torque_command() {
-    // Joints whose polarity must be reversed
+    // --- Constants ---
     const std::set<std::string> reversed_joints_ = {
-        "rear_left_hip", 
-        "rear_left_knee", 
-        "front_left_hip", 
-        "front_left_knee"
-    };
-
-    // Motor name mapping (Index 0 to 7)
+        "rear_left_hip", "rear_left_knee", "front_left_hip", "front_left_knee"};
     const std::array<std::string, model::nu_size> MOTOR_NAMES = {
-        "rear_left_hip",
-        "rear_left_knee",
-        "rear_right_hip",
-        "rear_right_knee",
-        "front_left_hip",
-        "front_left_knee",
-        "front_right_hip",
-        "front_right_knee"
-    };
-
-    // 1. Extract the feedforward torque from the QP solution (u_size = 8)
-    Vector<model::nu_size> feedforward_torque = 
-        solution_(Eigen::seqN(optimization::dv_idx, optimization::u_size));
+        "rear_left_hip", "rear_left_knee", "rear_right_hip", "rear_right_knee",
+        "front_left_hip", "front_left_knee", "front_right_hip", "front_right_knee"};
     
-        
-    // 2. Apply Polarity Reversal for Left Joints and Torque Limit
     const double MAX_TORQUE = 5.0;
-    
-    RCLCPP_INFO(this->get_logger(), "Published Command. Left joints polarity reversed. Torques (clamped to +/- %.1f Nm): [%.2f, %.2f, %.2f,%.2f,%.2f,%.2f,%.2f, %.2f]", 
-        MAX_TORQUE, feedforward_torque(0), feedforward_torque(1), feedforward_torque(2), feedforward_torque(3), feedforward_torque(4), feedforward_torque(5), feedforward_torque(6), feedforward_torque(7));
+    const double SAFETY_KP = 1000.0; 
+    const double SAFETY_KD = 100.0;
+    const int TORQUE_CONTROL_MODE = 1; 
+    const int POSITION_CONTROL_MODE = 3; 
 
-    for (size_t i = 0; i < model::nu_size; ++i) {
-        const std::string& motor_name = MOTOR_NAMES[i];
-        
-        // ---  Polarity Reversal Check (Executed first) ---
-        if (reversed_joints_.count(motor_name)) {
-            // Reverse the sign for left joints
-            feedforward_torque(i) *= -1.0;
-        }
-
-        // --- Torque Limit (Applied to the final, signed torque) ---
-        // Clamping the torque value between -MAX_TORQUE and MAX_TORQUE
-        feedforward_torque(i) = std::clamp(feedforward_torque(i), -MAX_TORQUE, MAX_TORQUE);
-    }
-    
-    // 3. Create the new command message (Command.msg)
+    // --- 1. Initialize Command Message ---
     auto command_msg = std::make_unique<Command>(); 
-
-    // ... (Steps 4, 5, 6 for message population and publishing remain the same) ...
-    // Set global fields
-    command_msg->high_level_control_mode = 3; 
     command_msg->master_gain = 1.0; 
-    
-    // Populate MotorCommand array
     command_msg->motor_commands.resize(model::nu_size);
 
-    for (size_t i = 0; i < model::nu_size; ++i) {
-        // --- Motor Name ---
-        command_msg->motor_commands[i].name = MOTOR_NAMES[i];
+    // --- 2. Determine Overall Mode and Populate Commands ---
+    if (safety_override_active_) {
+        // SCENARIO A: SAFETY OVERRIDE (Limit Hit)
+        // Global mode is set to the safety mode
+        command_msg->high_level_control_mode = POSITION_CONTROL_MODE; 
         
-        // --- Command Data ---
-        command_msg->motor_commands[i].position_setpoint = 0.0;
-        command_msg->motor_commands[i].velocity_setpoint = 0.0; 
-        // Use the sign-flipped and clamped torque
-        command_msg->motor_commands[i].feedforward_torque = static_cast<double>(feedforward_torque(i)); 
+        for (size_t i = 0; i < model::nu_size; ++i) {
+            command_msg->motor_commands[i].name = MOTOR_NAMES[i];
+            
+            // Force Position Control and maintain current position (q_current)
+            command_msg->motor_commands[i].control_mode = POSITION_CONTROL_MODE;
+            command_msg->motor_commands[i].position_setpoint = state_.motor_position(i); 
+            command_msg->motor_commands[i].velocity_setpoint = 0.0;
+            command_msg->motor_commands[i].feedforward_torque = 0.0; // Torque is handled by the high Kp/Kd
+            command_msg->motor_commands[i].kp = SAFETY_KP; 
+            command_msg->motor_commands[i].kd = SAFETY_KD;
+            command_msg->motor_commands[i].input_mode = 1;   
+            command_msg->motor_commands[i].enable = true; 
+        }
+
+    } else {
+        // SCENARIO B: NORMAL OPERATION (Limits Safe)
+        // Global mode is set to the normal OSC mode
+        command_msg->high_level_control_mode = TORQUE_CONTROL_MODE;
         
-        // --- PD Gains and Modes ---
-        command_msg->motor_commands[i].kp = 0.0; 
-        command_msg->motor_commands[i].kd = 0.0;
-        command_msg->motor_commands[i].control_mode = 1; // Torque Control Mode
-        command_msg->motor_commands[i].input_mode = 1;   
-        command_msg->motor_commands[i].enable = true; 
+        // Retrieve the solved torque (only valid if OSC solve was executed)
+        Vector<model::nu_size> osc_torque = solution_(Eigen::seqN(optimization::dv_idx, optimization::u_size));
+
+        for (size_t i = 0; i < model::nu_size; ++i) {
+            double final_torque = osc_torque(i);
+            
+            // Apply Polarity Reversal
+            if (reversed_joints_.count(MOTOR_NAMES[i])) {
+                final_torque *= -1.0;
+            }
+            
+            // Apply Torque Limit (Clamping)
+            final_torque = std::clamp(final_torque, -MAX_TORQUE, MAX_TORQUE);
+
+            // Send Torque Command
+            command_msg->motor_commands[i].name = MOTOR_NAMES[i];
+            command_msg->motor_commands[i].control_mode = TORQUE_CONTROL_MODE;
+            command_msg->motor_commands[i].feedforward_torque = static_cast<double>(final_torque); 
+            
+            // Zero out unused PD terms for Torque Mode
+            command_msg->motor_commands[i].position_setpoint = 0.0;
+            command_msg->motor_commands[i].velocity_setpoint = 0.0; 
+            command_msg->motor_commands[i].kp = 0.0; 
+            command_msg->motor_commands[i].kd = 0.0;
+            command_msg->motor_commands[i].input_mode = 1;   
+            command_msg->motor_commands[i].enable = true; 
+        }
     }
-    
-    // Publish the command
+
+    // --- 3. Publish ---
     torque_publisher_->publish(std::move(command_msg));
-    
 }
