@@ -113,7 +113,7 @@ private:
     // --- Persistent PD Control History & References ---
     double last_time_ = 0.0;
     
-
+    bool safety_override_active_ = false;
 
     // Initial joint angles (for position tracking reference)
     double initial_tl_angular_position_ = 0.0;
