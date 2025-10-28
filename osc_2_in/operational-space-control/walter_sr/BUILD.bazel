@@ -62,6 +62,8 @@ ros2_cpp_library(
         
         # Generated messages from your `ros2_msgs` rule
         "//:cpp_osc_2_in_interface",
+        "//:cpp_walter_msgs",
+        
 
         # ROS 2 Core Dependencies
         "@ros2_common_interfaces//:cpp_std_msgs",

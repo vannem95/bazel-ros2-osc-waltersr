@@ -21,9 +21,13 @@
 #include "osc_2_in_interface/msg/osc_torque_command.hpp"
 #include "osc_2_in_interface/msg/osc_taskspace_targets.hpp"
 
-#include "osc_2_in_interface/msg/command.hpp"
-#include "osc_2_in_interface/msg/motor_command.hpp"
-#include "osc_2_in_interface/msg/wheel_motor_command.hpp"
+// #include "osc_2_in_interface/msg/command.hpp"
+// #include "osc_2_in_interface/msg/motor_command.hpp"
+// #include "osc_2_in_interface/msg/wheel_motor_command.hpp"
+
+#include "walter_msgs/msg/command.hpp"
+#include "walter_msgs/msg/motor_command.hpp"
+#include "walter_msgs/msg/wheel_motor_command.hpp"
 
 
 #include "operational-space-control/walter_sr/utilities.h"
@@ -45,9 +49,9 @@ using osc_2_in_interface::msg::OSCMujocoState;
 using osc_2_in_interface::msg::OSCTorqueCommand;
 using osc_2_in_interface::msg::OSCTaskspaceTargets;
 
-using osc_2_in_interface::msg::Command;
-using osc_2_in_interface::msg::MotorCommand;
-using osc_2_in_interface::msg::WheelMotorCommand;
+using walter_msgs::msg::Command;
+using walter_msgs::msg::MotorCommand;
+using walter_msgs::msg::WheelMotorCommand;
 
 
 // namespace {
