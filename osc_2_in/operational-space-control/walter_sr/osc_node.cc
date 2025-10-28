@@ -306,7 +306,8 @@ void OSCNode::timer_callback() {
     if (last_time_ == 0.0) {
         update_mj_data(); // Ensure mj_data_ is consistent
         last_time_ = current_time;
-        safety_override_active_ = false; // Initialize flag (must be a member variable)        
+        safety_override_active_ = false; // Initialize flag (must be a member variable) 
+        bool limit_hit = false;
         return; 
     }
 
@@ -317,7 +318,6 @@ void OSCNode::timer_callback() {
     const double SHIN_LIMIT = M_PI / 2.0;
     const double THIGH_LIMIT = M_PI / 4.0;
     
-    bool limit_hit = false;
     
     // Check Thighs (0, 2, 4, 6)
     for (size_t i : {0, 2, 4, 6}) {
@@ -611,12 +611,16 @@ void OSCNode::publish_torque_command() {
         "rear_left_hip", "rear_left_knee", "rear_right_hip", "rear_right_knee",
         "front_left_hip", "front_left_knee", "front_right_hip", "front_right_knee"};
     
-    const double MAX_TORQUE = 10.0;
-    const double SAFETY_KP = 1000.0; 
-    const double SAFETY_KD = 100.0;
+    const double MAX_TORQUE = 1.0;
     const int TORQUE_CONTROL_MODE = 1; 
     const int VELOCITY_CONTROL_MODE = 2; 
     const int POSITION_CONTROL_MODE = 3; 
+
+
+    // -------------------------------  DEBUG  -------------------------------
+    const bool DEBUG = true; 
+    // -------------------------------  DEBUG  -------------------------------
+
 
     // --- 1. Initialize Command Message ---
     auto command_msg = std::make_unique<Command>(); 
@@ -627,7 +631,7 @@ void OSCNode::publish_torque_command() {
     if (safety_override_active_) {
         // SCENARIO A: SAFETY OVERRIDE (Limit Hit)
         // Global mode is set to the safety mode
-        command_msg->high_level_control_mode = POSITION_CONTROL_MODE; 
+        command_msg->high_level_control_mode = 2; 
         
         for (size_t i = 0; i < model::nu_size; ++i) {
             command_msg->motor_commands[i].name = MOTOR_NAMES[i];
@@ -646,7 +650,7 @@ void OSCNode::publish_torque_command() {
     } else {
         // SCENARIO B: NORMAL OPERATION (Limits Safe)
         // Global mode is set to the normal OSC mode
-        command_msg->high_level_control_mode = TORQUE_CONTROL_MODE;
+        command_msg->high_level_control_mode = 2;
         
         // Retrieve the solved torque (only valid if OSC solve was executed)
         Vector<model::nu_size> osc_torque = solution_(Eigen::seqN(optimization::dv_idx, optimization::u_size));
@@ -665,6 +669,10 @@ void OSCNode::publish_torque_command() {
             // Send Torque Command
             command_msg->motor_commands[i].name = MOTOR_NAMES[i];
             command_msg->motor_commands[i].control_mode = TORQUE_CONTROL_MODE;
+
+            if (DEBUG){
+                final_torque = 0.0
+            }
             command_msg->motor_commands[i].feedforward_torque = static_cast<double>(final_torque); 
             
             // Zero out unused PD terms for Torque Mode
