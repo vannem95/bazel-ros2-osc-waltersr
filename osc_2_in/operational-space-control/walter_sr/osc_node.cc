@@ -356,8 +356,12 @@ void OSCNode::timer_callback() {
         double shin_pos_target = 0.0; // Target is now zero
         double thigh_pos_target = 0.0; // Target is now zero
         
-        double shin_kp = 8000.0; double shin_kv = 800.0;
-        double thigh_kp = 1000.0; double thigh_kv = 100.0;
+        // double shin_kp = 8000.0; double shin_kv = 800.0;
+        // double thigh_kp = 1000.0; double thigh_kv = 100.0;
+
+        double shin_kp = 10.0; double shin_kv = 1.0;
+        double thigh_kp = 10.0; double thigh_kv = 1.0;
+
         double rot_vel_target = 0.0; 
 
         // --- 3b. Calculate DDQ Commands ---
@@ -601,7 +605,7 @@ void OSCNode::publish_torque_command() {
         "rear_left_hip", "rear_left_knee", "rear_right_hip", "rear_right_knee",
         "front_left_hip", "front_left_knee", "front_right_hip", "front_right_knee"};
     
-    const double MAX_TORQUE = 1.0;
+    const double MAX_TORQUE = 0.1;
     const int TORQUE_CONTROL_MODE = 1; 
     const int VELOCITY_CONTROL_MODE = 2; 
     const int POSITION_CONTROL_MODE = 3; 
@@ -661,7 +665,7 @@ void OSCNode::publish_torque_command() {
             command_msg->motor_commands[i].control_mode = TORQUE_CONTROL_MODE;
 
 
-            command_msg->motor_commands[i].feedforward_torque = static_cast<double>(0.0); 
+            command_msg->motor_commands[i].feedforward_torque = static_cast<double>(final_torque); 
             
             // Zero out unused PD terms for Torque Mode
             command_msg->motor_commands[i].position_setpoint = 0.0;
