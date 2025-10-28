@@ -611,7 +611,7 @@ void OSCNode::publish_torque_command() {
         "rear_left_hip", "rear_left_knee", "rear_right_hip", "rear_right_knee",
         "front_left_hip", "front_left_knee", "front_right_hip", "front_right_knee"};
     
-    const double MAX_TORQUE = 5.0;
+    const double MAX_TORQUE = 10.0;
     const double SAFETY_KP = 1000.0; 
     const double SAFETY_KD = 100.0;
     const int TORQUE_CONTROL_MODE = 1; 
