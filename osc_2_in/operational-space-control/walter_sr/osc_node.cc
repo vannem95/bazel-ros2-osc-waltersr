@@ -167,20 +167,20 @@ OSCNode::OSCNode(const std::string& xml_path)
     //    Motor positions start at index 7 in the floating-base qpos array (3-pos + 4-quat).
     
     // Assuming model::nu_size is 8:
-    for (size_t i = 0; i < model::nu_size; ++i) {
-        // qpos index = 7 (base pos/quat end) + i (motor index)
-        state_.motor_position(i) = mj_data_->qpos[7 + i];
-        // Ensure other essential fields are also non-zero if needed, 
-        // e.g., base rotation:
-        if (i < 4) {
-            state_.body_rotation(i) = mj_data_->qpos[3 + i];
-        }
-    }
-    // You can clear velocities and torques as they should start at zero.
-    state_.motor_velocity.setZero();
-    state_.linear_body_velocity.setZero();
-    state_.angular_body_velocity.setZero();
-    state_.torque_estimate.setZero();
+    // for (size_t i = 0; i < model::nu_size; ++i) {
+    //     // qpos index = 7 (base pos/quat end) + i (motor index)
+    //     state_.motor_position(i) = mj_data_->qpos[7 + i];
+    //     // Ensure other essential fields are also non-zero if needed, 
+    //     // e.g., base rotation:
+    //     if (i < 4) {
+    //         state_.body_rotation(i) = mj_data_->qpos[3 + i];
+    //     }
+    // }
+    // // You can clear velocities and torques as they should start at zero.
+    // state_.motor_velocity.setZero();
+    // state_.linear_body_velocity.setZero();
+    // state_.angular_body_velocity.setZero();
+    // state_.torque_estimate.setZero();
 
 
     // Thighs: 0, 2, 4, 6 in the 8-DOF motor array.
